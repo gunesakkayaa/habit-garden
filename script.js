@@ -1,24 +1,61 @@
-const STORAGE_KEY = "habit-garden";
 const DAY_NAMES = ["Pz", "Pt", "Sa", "Ça", "Pe", "Cu", "Ct"];
 
-let habits = load();
+let habits = []; // giriş yapan kullanıcının verisi (Supabase'den gelir)
 
 const form = document.getElementById("habit-form");
 const input = document.getElementById("habit-input");
 const list = document.getElementById("habit-list");
 const empty = document.getElementById("empty");
 
-// ---- Depolama ----
-function load() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch {
-    return [];
+// ---- Veri (Supabase; `db` istemcisi auth.js içinde tanımlı) ----
+function showError(message) {
+  const el = document.getElementById("app-error");
+  el.textContent = message;
+  el.hidden = !message;
+}
+
+// Supabase tek istekte en fazla 1000 satır döner; sayfa sayfa çek.
+async function fetchAll(table, columns, orderBy) {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    let query = db.from(table).select(columns);
+    orderBy.forEach((col) => (query = query.order(col)));
+    const { data, error } = await query.range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) return rows;
   }
 }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(habits));
+async function loadHabits() {
+  const [habitRows, completionRows] = await Promise.all([
+    fetchAll("habits", "id, name, badges", ["created_at", "id"]),
+    fetchAll("completions", "habit_id, date", ["habit_id", "date"]),
+  ]);
+  return habitRows.map((h) => ({
+    ...h,
+    dates: completionRows.filter((c) => c.habit_id === h.id).map((c) => c.date),
+  }));
+}
+
+// Giriş yapılınca çağrılır (auth.js)
+async function startApp() {
+  showError("");
+  try {
+    habits = await loadHabits();
+  } catch {
+    habits = [];
+    showError("Veriler yüklenemedi. Sayfayı yenilemeyi dene.");
+  }
+  render();
+}
+
+// Çıkışta önceki kullanıcının verisi ekranda kalmasın
+function stopApp() {
+  habits = [];
+  calHabitId = null;
+  list.innerHTML = "";
+  showError("");
 }
 
 // ---- Tarih yardımcıları (yerel saat) ----
@@ -159,54 +196,74 @@ function getLongestStreak(dates) {
 
 // Geçmişten kazanılan rozetleri ekler; kazanılan rozet asla silinmez.
 function updateBadges() {
-  let changed = false;
   habits.forEach((habit) => {
     if (!habit.badges) habit.badges = [];
     const best = getLongestStreak(habit.dates);
+    let changed = false;
     BADGES.forEach((b) => {
       if (best >= b.days && !habit.badges.includes(b.days)) {
         habit.badges.push(b.days);
         changed = true;
       }
     });
+    if (changed) {
+      db.from("habits")
+        .update({ badges: habit.badges })
+        .eq("id", habit.id)
+        .then(({ error }) => error && showError("Rozet kaydedilemedi."));
+    }
   });
-  if (changed) save();
 }
 
 // ---- İşlemler ----
-function renameHabit(id) {
+async function renameHabit(id) {
   const habit = habits.find((h) => h.id === id);
   const name = prompt("Alışkanlık adı:", habit.name);
   if (name === null) return; // vazgeçildi
   const trimmed = name.trim().slice(0, 40);
   if (!trimmed) return;
+  const { error } = await db.from("habits").update({ name: trimmed }).eq("id", id);
+  if (error) return showError("Ad değiştirilemedi. Tekrar dene.");
+  showError("");
   habit.name = trimmed;
-  save();
   render();
 }
 
-function addHabit(name) {
-  habits.push({ id: Date.now(), name, dates: [] });
-  save();
+async function addHabit(name) {
+  const { data, error } = await db.from("habits").insert({ name }).select("id, name, badges").single();
+  if (error) return showError("Alışkanlık eklenemedi. Tekrar dene.");
+  showError("");
+  habits.push({ ...data, dates: [] });
   render();
 }
 
-function deleteHabit(id) {
+async function deleteHabit(id) {
+  const { error } = await db.from("habits").delete().eq("id", id); // tamamlanma kayıtları cascade ile silinir
+  if (error) return showError("Alışkanlık silinemedi. Tekrar dene.");
+  showError("");
   habits = habits.filter((h) => h.id !== id);
-  save();
   render();
 }
 
-function toggleToday(id) {
-  const habit = habits.find((h) => h.id === id);
-  const today = dateKey(new Date());
-  if (habit.dates.includes(today)) {
-    habit.dates = habit.dates.filter((d) => d !== today);
-  } else {
-    habit.dates.push(today);
+let toggling = false; // çift tıklamada aynı günü iki kez eklemeyi engeller
+
+async function toggleToday(id) {
+  if (toggling) return;
+  toggling = true;
+  try {
+    const habit = habits.find((h) => h.id === id);
+    const today = dateKey(new Date());
+    const done = habit.dates.includes(today);
+    const { error } = done
+      ? await db.from("completions").delete().eq("habit_id", id).eq("date", today)
+      : await db.from("completions").insert({ habit_id: id, date: today });
+    if (error) return showError("Kaydedilemedi. Tekrar dene.");
+    showError("");
+    habit.dates = done ? habit.dates.filter((d) => d !== today) : [...habit.dates, today];
+    render();
+  } finally {
+    toggling = false;
   }
-  save();
-  render();
 }
 
 // ---- Görünüm ----
@@ -274,7 +331,7 @@ form.addEventListener("submit", (e) => {
 });
 
 document.getElementById("cal-habit").addEventListener("change", (e) => {
-  calHabitId = Number(e.target.value);
+  calHabitId = e.target.value; // uuid
   renderCalendar();
 });
 
@@ -287,5 +344,3 @@ document.getElementById("cal-next").addEventListener("click", () => {
   calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
   renderCalendar();
 });
-
-render();
