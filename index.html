@@ -45,6 +45,10 @@
     </header>
     <p class="subtitle">Küçük adımlarla bahçeni büyüt.</p>
     <p id="app-error" class="auth-error" role="alert" hidden></p>
+    <p id="import-banner" class="import-banner" hidden>
+      Bu tarayıcıda hesabına aktarılmamış alışkanlıkların var.
+      <button id="import-open" class="link" type="button">Aktar</button>
+    </p>
 
     <form id="habit-form" class="add-form">
       <input id="habit-input" type="text" placeholder="Yeni alışkanlık ekle..." maxlength="40" required>
@@ -116,6 +120,13 @@
     <section class="set-section">
       <h3>Rozetlerim</h3>
       <div id="set-badges"></div>
+    </section>
+
+    <section id="import-section" class="set-section" hidden>
+      <h3>Eski verileri aktar</h3>
+      <p id="import-info" class="set-hint"></p>
+      <p id="import-msg" class="form-msg" hidden></p>
+      <button id="import-btn" class="secondary" type="button">Hesabıma aktar</button>
     </section>
 
     <section class="set-section">

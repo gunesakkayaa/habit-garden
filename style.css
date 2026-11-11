@@ -91,6 +91,7 @@
 .set-hint { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.4; }
 .form-msg { margin: 0; font-size: 0.85rem; color: #b04a40; }
 .form-msg.ok { color: var(--green-dark); }
+.import-banner { margin: 0 0 16px; padding: 10px 12px; background: var(--green-light); border-radius: 12px; font-size: 0.9rem; }
 .secondary { min-height: 48px; background: var(--green-light); color: var(--green-dark); font-weight: 600; }
 .danger { background: #b04a40; }
 .danger-zone summary { cursor: pointer; color: #b04a40; font-weight: 600; padding: 8px 0; }

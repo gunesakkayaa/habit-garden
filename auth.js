@@ -118,9 +118,66 @@ function renderSettingsBadges() {
   });
 }
 
+// ---- Eski (localStorage) verileri bir defa aktarma ----
+const LOCAL_KEY = "habit-garden"; // eski sürümün kullandığı anahtar; okunur, asla silinmez/değiştirilmez
+
+function isRealDate(key) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
+  const [y, m, d] = key.split("-").map(Number);
+  return dateKey(new Date(y, m - 1, d)) === key;
+}
+
+function readLocalHabits() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LOCAL_KEY));
+    if (!Array.isArray(raw)) return [];
+    const today = dateKey(new Date());
+    return raw
+      .map((h) => ({
+        name: String((h && h.name) || "").trim().slice(0, 40),
+        dates: [...new Set((Array.isArray(h && h.dates) ? h.dates : []).filter((d) => typeof d === "string" && isRealDate(d) && d <= today))],
+      }))
+      .filter((h) => h.name)
+      .slice(0, 50);
+  } catch {
+    return [];
+  }
+}
+
+function refreshImportUI() {
+  const local = profile && !profile.imported_at ? readLocalHabits() : [];
+  const days = local.reduce((sum, h) => sum + h.dates.length, 0);
+  $("import-banner").hidden = local.length === 0;
+  $("import-section").hidden = local.length === 0;
+  $("import-info").textContent = `Bu tarayıcıda ${local.length} alışkanlık ve ${days} tamamlanma günü bulundu. Hesabına bir defa aktarılabilir; tarayıcıdaki veriler silinmez.`;
+}
+
+$("import-open").addEventListener("click", () => $("settings-btn").click());
+
+$("import-btn").addEventListener("click", async () => {
+  const local = readLocalHabits();
+  if (local.length === 0) return;
+  const days = local.reduce((sum, h) => sum + h.dates.length, 0);
+  if (!confirm(`${local.length} alışkanlık ve ${days} tamamlanma günü hesabına aktarılacak. Bu işlem yalnızca bir defa yapılabilir. Devam edilsin mi?`)) return;
+
+  const button = $("import-btn");
+  button.disabled = true;
+  try {
+    const { error } = await db.rpc("import_local_data", { payload: local });
+    if (error) return setMsg("import-msg", "Aktarım yapılamadı, hiçbir veri eklenmedi. Tekrar dene.");
+    profile.imported_at = new Date().toISOString();
+    await startApp(); // hesabın güncel verisini yeniden yükle
+    renderSettingsBadges();
+    refreshImportUI();
+    alert("Eski verilerin hesabına aktarıldı.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function resetSettings() {
   ["profile-form", "password-form", "delete-form"].forEach((id) => $(id).reset());
-  ["profile-msg", "password-msg", "delete-msg"].forEach((id) => setMsg(id, ""));
+  ["profile-msg", "password-msg", "delete-msg", "import-msg"].forEach((id) => setMsg(id, ""));
   document.querySelector(".danger-zone").open = false;
 }
 
@@ -214,9 +271,10 @@ async function syncSession(session) {
 
   authView.hidden = true;
   appView.hidden = false;
-  const { data } = await db.from("profiles").select("username, display_name").maybeSingle();
+  const { data } = await db.from("profiles").select("username, display_name, imported_at").maybeSingle();
   profile = data;
   renderWelcome();
+  refreshImportUI();
   await startApp();
 }
 
