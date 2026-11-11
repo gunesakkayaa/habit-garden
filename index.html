@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Habit Garden</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="app">
+    <h1>🌱 Habit Garden</h1>
+    <p class="subtitle">Küçük adımlarla bahçeni büyüt.</p>
+
+    <form id="habit-form" class="add-form">
+      <input id="habit-input" type="text" placeholder="Yeni alışkanlık ekle..." maxlength="40" required>
+      <button type="submit">Ekle</button>
+    </form>
+
+    <section id="progress" class="progress-card" hidden>
+      <div class="progress-head">
+        <span>Bugünün ilerlemesi</span>
+        <strong id="progress-text"></strong>
+      </div>
+      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+        <div id="progress-fill" class="bar-fill"></div>
+      </div>
+    </section>
+
+    <ul id="habit-list" class="habit-list"></ul>
+
+    <section id="calendar" class="calendar-card" hidden>
+      <h2>Aylık takvim</h2>
+      <select id="cal-habit" aria-label="Alışkanlık seç"></select>
+      <div class="cal-nav">
+        <button id="cal-prev" type="button" aria-label="Önceki ay">‹</button>
+        <strong id="cal-title"></strong>
+        <button id="cal-next" type="button" aria-label="Sonraki ay">›</button>
+      </div>
+      <div id="cal-grid" class="cal-grid"></div>
+      <p id="cal-summary" class="cal-summary"></p>
+    </section>
+
+    <div id="empty" class="empty" hidden>
+      <div class="empty-icon">🌱</div>
+      <h2>Bahçen henüz boş</h2>
+      <p>İlk alışkanlığını ekle, her gün küçük bir adım at ve bitkinin büyümesini izle.</p>
+    </div>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
